@@ -1,0 +1,10 @@
+Build command
+    $ scons -j8 build/X86/gem5.opt
+
+I had to manually point to the older version of python (Python 2.7)
+    $ export PATH=/usr/bin:$PATH
+    $ export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+    $ export LIBRARY_PATH=/usr/local/lib:$LIBRARY_PATH 
+
+Simple run command
+    $ ./build/X86/gem5.opt ./configs/example/se.py -c ./tests/test-progs/hello/bin/x86/linux/hello
