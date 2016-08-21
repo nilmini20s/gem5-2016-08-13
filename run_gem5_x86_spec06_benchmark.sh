@@ -176,20 +176,41 @@ echo "" | tee -a $SCRIPT_OUT
 echo "" | tee -a $SCRIPT_OUT
 
 # Actually launching gem5
-gdb --args $GEM5_DIR/build/X86/gem5.$GEM5_OPT \
-    --outdir=$OUTPUT_DIR \
-    --debug-flags=CacheAll,O3CPUAll \
-    --debug-file=$OUTPUT_DIR/debug.out \
-    $GEM5_DIR/configs/example/spec06_config.py \
-    --benchmark=$BENCHMARK \
-    --benchmark_stdout=$OUTPUT_DIR/$BENCHMARK.out \
-    --benchmark_stderr=$OUTPUT_DIR/$BENCHMARK.err \
-    --cpu-type=detailed \
-    --cpu-clock=1GHz \
-    --mem-size=2GB \
-    -I 10000000 \
-    --caches \
-    --l1d_size=32kB \
-    --l1i_size=32kB \
-    --l2cache \
-    --l2_size=2MB | tee -a $SCRIPT_OUT 
+if [[ "$GEM5_OPT" == "debug" ]]; then
+    gdb --args $GEM5_DIR/build/X86/gem5.$GEM5_OPT \
+        --outdir=$OUTPUT_DIR \
+        --debug-flags=CacheAll,O3CPUAll \
+        --debug-file=$OUTPUT_DIR/debug.out \
+        $GEM5_DIR/configs/example/spec06_config.py \
+        --benchmark=$BENCHMARK \
+        --benchmark_stdout=$OUTPUT_DIR/$BENCHMARK.out \
+        --benchmark_stderr=$OUTPUT_DIR/$BENCHMARK.err \
+        --cpu-type=detailed \
+        --cpu-clock=1GHz \
+        --mem-size=2GB \
+        --mem-type=HBM_1000_4H_x128 \
+        -I 10000000 \
+        --caches \
+        --l1d_size=32kB \
+        --l1i_size=32kB \
+        --l2cache \
+        --l2_size=2MB | tee -a $SCRIPT_OUT 
+else
+    $GEM5_DIR/build/X86/gem5.$GEM5_OPT \
+        --outdir=$OUTPUT_DIR \
+        $GEM5_DIR/configs/example/spec06_config.py \
+        --benchmark=$BENCHMARK \
+        --benchmark_stdout=$OUTPUT_DIR/$BENCHMARK.out \
+        --benchmark_stderr=$OUTPUT_DIR/$BENCHMARK.err \
+        --cpu-type=detailed \
+        --cpu-clock=1GHz \
+        --mem-size=2GB \
+        --mem-type=HBM_1000_4H_x128 \
+        -I 10000000 \
+        --caches \
+        --l1d_size=32kB \
+        --l1i_size=32kB \
+        --l2cache \
+        --l2_size=2MB | tee -a $SCRIPT_OUT 
+fi
+
