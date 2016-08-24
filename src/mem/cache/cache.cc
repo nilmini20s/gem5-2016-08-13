@@ -159,7 +159,7 @@ Cache::satisfyRequest(PacketPtr pkt, CacheBlk *blk,
     // Read requester(s) to have buffered the ReadEx snoop and to
     // invalidate their blocks after receiving them.
     // assert(!pkt->needsWritable() || blk->isWritable());
-    assert(pkt->getOffset(blkSize) + pkt->getSize() <= blkSize);
+    ///// assert(pkt->getOffset(blkSize) + pkt->getSize() <= blkSize);
 
     // Check RMW operations first since both isRead() and
     // isWrite() will be true for them
@@ -324,10 +324,17 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
     // Here lat is the value passed as parameter to accessBlock() function
     // that can modify its value.
     blk = tags->accessBlock(pkt->getAddr(), pkt->isSecure(), lat, id);
+    if ( (!params()->name.compare("system.l2") ||
+                !params()->name.compare("system.cpu.dcache")) &&
+            (blk != nullptr) && !blk->isValid(getSector(pkt->getAddr())))
+        blk = nullptr;
 
-    DPRINTF(Cache, "%s%s addr %#llx size %d (%s) %s\n", pkt->cmdString(),
+    DPRINTF(Cache, "%s%s addr %#llx blockAddr %#llx sectorAddr %#llx \
+            size %d (%s) %s\n", pkt->cmdString(),
             pkt->req->isInstFetch() ? " (ifetch)" : "",
-            pkt->getAddr(), pkt->getSize(), pkt->isSecure() ? "s" : "ns",
+            pkt->getAddr(), blockAlign(pkt->getAddr()),
+            getSector(pkt->getAddr()),
+            pkt->getSize(), pkt->isSecure() ? "s" : "ns",
             blk ? "hit " + blk->print() : "miss");
 
 
@@ -396,6 +403,8 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
             tags->insertBlock(pkt, blk);
 
             blk->status = (BlkValid | BlkReadable);
+            blk->sector_status |= (0x1 << getSector(pkt->getAddr()));
+
             if (pkt->isSecure()) {
                 blk->status |= BlkSecure;
             }
@@ -915,7 +924,7 @@ Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
     // should never see evictions here
     assert(!cpu_pkt->isEviction());
 
-    bool blkValid = blk && blk->isValid();
+    bool blkValid = blk && blk->isValid(getSector(cpu_pkt->getAddr()));
 
     if (cpu_pkt->req->isUncacheable() ||
         (!blkValid && cpu_pkt->isUpgrade())) {
@@ -936,7 +945,7 @@ Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
         // only reason to be here is that blk is read only and we need
         // it to be writable
         assert(needsWritable);
-        assert(!blk->isWritable());
+        assert(!blk->isWritable(getSector(cpu_pkt->getAddr())));
         cmd = cpu_pkt->isLLSC() ? MemCmd::SCUpgradeReq : MemCmd::UpgradeReq;
     } else if (cpu_pkt->cmd == MemCmd::SCUpgradeFailReq ||
                cpu_pkt->cmd == MemCmd::StoreCondFailReq) {
@@ -956,7 +965,11 @@ Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
         cmd = needsWritable ? MemCmd::ReadExReq :
             (isReadOnly ? MemCmd::ReadCleanReq : MemCmd::ReadSharedReq);
     }
+
+    // creates a new packet for the miss, the constructor for Packet block
+    // aligns the address (we dont' want that for sector caches)
     PacketPtr pkt = new Packet(cpu_pkt->req, cmd, blkSize);
+    pkt->setAddr(cpu_pkt->getAddr() & ~(16-1));
 
     // if there are upstream caches that have already marked the
     // packet as having sharers (not passing writable), pass that info
@@ -974,7 +987,7 @@ Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
     }
 
     // the packet should be block aligned
-    assert(pkt->getAddr() == blockAlign(pkt->getAddr()));
+    //assert(pkt->getAddr() == blockAlign(pkt->getAddr()));
 
     pkt->allocate();
     DPRINTF(Cache, "%s created %s from %s for  addr %#llx size %d\n",
@@ -1469,7 +1482,7 @@ Cache::recvTimingResp(PacketPtr pkt)
 
     maintainClusivity(from_cache, blk);
 
-    if (blk && blk->isValid()) {
+    if (blk && blk->isValid(getSector(pkt->getAddr()))) {
         // an invalidate response stemming from a write line request
         // should not invalidate the block, so check if the
         // invalidation should be discarded
@@ -1727,7 +1740,7 @@ Cache::handleFill(PacketPtr pkt, CacheBlk *blk, PacketList &writebacks,
                   bool allocate)
 {
     assert(pkt->isResponse() || pkt->cmd == MemCmd::WriteLineReq);
-    Addr addr = pkt->getAddr();
+    Addr addr = blockAlign(pkt->getAddr());
     bool is_secure = pkt->isSecure();
 #if TRACING_ON
     CacheBlk::State old_state = blk ? blk->status : 0;
@@ -1779,6 +1792,7 @@ Cache::handleFill(PacketPtr pkt, CacheBlk *blk, PacketList &writebacks,
     if (is_secure)
         blk->status |= BlkSecure;
     blk->status |= BlkValid | BlkReadable;
+    blk->sector_status |= (0x1 << getSector(pkt->getAddr()));
 
     // sanity check for whole-line writes, which should always be
     // marked as writable as part of the fill, and then later marked

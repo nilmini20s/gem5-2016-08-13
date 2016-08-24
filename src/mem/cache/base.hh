@@ -481,6 +481,9 @@ class BaseCache : public MemObject
 
     Addr blockAlign(Addr addr) const { return (addr & ~(Addr(blkSize - 1))); }
 
+    /* get sector for the sector cache */
+    unsigned getSector(Addr addr) const { return ((addr >> 4) & 0x3); }
+
 
     const AddrRangeList &getAddrRanges() const { return addrRanges; }
 

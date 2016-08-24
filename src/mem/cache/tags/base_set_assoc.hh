@@ -208,6 +208,8 @@ public:
         Addr tag = extractTag(addr);
         int set = extractSet(addr);
         BlkType *blk = sets[set].findBlk(tag, is_secure);
+        //if ((blk != nullptr) && !blk->isValid(extractSector(addr)))
+        //    blk = nullptr;
         lat = accessLatency;;
 
         // Access all tags in parallel, hence one in each way.  The data side
@@ -378,6 +380,11 @@ public:
     Addr regenerateBlkAddr(Addr tag, unsigned set) const override
     {
         return ((tag << tagShift) | ((Addr)set << setShift));
+    }
+
+    Addr extractSector(Addr addr) const
+    {
+        return ((addr >> 4) & 0x3);
     }
 
     /**

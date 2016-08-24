@@ -103,6 +103,9 @@ class CacheBlk
     /** The current status of this block. @sa CacheBlockStatusBits */
     State status;
 
+    /** A 4-sectored cache has 4 sub-blocks per cache line */
+    State sector_status;
+
     /** Which curTick() will this block be accessable */
     Tick whenReady;
 
@@ -169,7 +172,8 @@ class CacheBlk
 
     CacheBlk()
         : task_id(ContextSwitchTaskId::Unknown),
-          asid(-1), tag(0), data(0) ,size(0), status(0), whenReady(0),
+          asid(-1), tag(0), data(0) ,size(0), status(0), sector_status(0),
+          whenReady(0),
           set(-1), way(-1), isTouched(false), refCount(0),
           srcMasterId(Request::invldMasterId),
           tickInserted(0)
@@ -189,6 +193,15 @@ class CacheBlk
     }
 
     /**
+     * Alternative isWritable() for sector cache
+     */
+    bool isWritable(const unsigned sector) const
+    {
+        unsigned sector_validity = (sector_status & (0x1 << sector));
+        return (isWritable() && sector_validity);
+    }
+
+    /**
      * Checks the read permissions of this block.  Note that a block
      * can be valid but not readable if there is an outstanding write
      * upgrade miss.
@@ -201,6 +214,15 @@ class CacheBlk
     }
 
     /**
+     * Alternative isReadable() for sector cache
+     */
+    bool isReadable(const unsigned sector) const
+    {
+        unsigned sector_validity = (sector_status & (0x1 << sector));
+        return (isReadable() && sector_validity);
+    }
+
+    /**
      * Checks that a block is valid.
      * @return True if the block is valid.
      */
@@ -210,11 +232,21 @@ class CacheBlk
     }
 
     /**
+     * Alternative isValid() for sector cache
+     */
+    bool isValid(const unsigned sector) const
+    {
+        unsigned sector_validity = (sector_status & (0x1 << sector));
+        return (isValid() && sector_validity);
+    }
+
+    /**
      * Invalidate the block and clear all state.
      */
     void invalidate()
     {
         status = 0;
+        sector_status = 0;
         isTouched = false;
         lockList.clear();
     }
