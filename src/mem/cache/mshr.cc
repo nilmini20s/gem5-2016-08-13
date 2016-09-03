@@ -506,6 +506,18 @@ MSHR::sendPacket(Cache &cache)
     return cache.sendMSHRQueuePacket(this);
 }
 
+bool
+MSHR::checkMSHREntrySector(Addr potential_addr)
+{
+    unsigned potential_sector = ((potential_addr >> 4) & 0x3);
+   for (auto& t : targets )  {
+       unsigned existing_sector = ((t.pkt->getAddr() >> 4) & 0x3);
+       if (potential_sector == existing_sector)
+           return true;
+   }
+   return false;
+}
+
 void
 MSHR::print(std::ostream &os, int verbosity, const std::string &prefix) const
 {

@@ -317,6 +317,10 @@ class Packet : public Printable
     /// physical, depending on the system configuration.
     Addr addr;
 
+    /// The real address. Save the real address here while the memory request
+    /// address is getting block aligned.
+    Addr real_addr;
+
     /// True if the request targets the secure memory space.
     bool _isSecure;
 
@@ -636,14 +640,18 @@ class Packet : public Printable
     void copyError(Packet *pkt) { assert(pkt->isError()); cmd = pkt->cmd; }
 
     Addr getAddr() const { assert(flags.isSet(VALID_ADDR)); return addr; }
-    /**
+
+    Addr getRealAddr() const { assert(flags.isSet(VALID_ADDR));
+        return real_addr; }
+    /*
      * Update the address of this packet mid-transaction. This is used
      * by the address mapper to change an already set address to a new
      * one based on the system configuration. It is intended to remap
      * an existing address, so it asserts that the current address is
      * valid.
      */
-    void setAddr(Addr _addr) { assert(flags.isSet(VALID_ADDR)); addr = _addr; }
+    void setAddr(Addr _addr) { assert(flags.isSet(VALID_ADDR)); addr = _addr;
+        real_addr = addr; }
 
     unsigned getSize() const  { assert(flags.isSet(VALID_SIZE)); return size; }
 
@@ -654,7 +662,7 @@ class Packet : public Printable
 
     Addr getBlockAddr(unsigned int blk_size) const
     {
-        return getAddr() & ~(Addr(blk_size - 1));
+        return getRealAddr() & ~(Addr(blk_size - 1));
     }
 
     bool isSecure() const
@@ -705,6 +713,7 @@ class Packet : public Printable
     {
         if (req->hasPaddr()) {
             addr = req->getPaddr();
+            real_addr = addr;
             flags.set(VALID_ADDR);
             _isSecure = req->isSecure();
         }
@@ -726,6 +735,7 @@ class Packet : public Printable
     {
         if (req->hasPaddr()) {
             addr = req->getPaddr() & ~(_blkSize - 1);
+            real_addr = req->getPaddr();
             flags.set(VALID_ADDR);
             _isSecure = req->isSecure();
         }
@@ -743,7 +753,8 @@ class Packet : public Printable
     Packet(const PacketPtr pkt, bool clear_flags, bool alloc_data)
         :  cmd(pkt->cmd), req(pkt->req),
            data(nullptr),
-           addr(pkt->addr), _isSecure(pkt->_isSecure), size(pkt->size),
+           addr(pkt->addr), real_addr(pkt->addr),
+           _isSecure(pkt->_isSecure), size(pkt->size),
            bytesValid(pkt->bytesValid),
            headerDelay(pkt->headerDelay),
            snoopDelay(0),

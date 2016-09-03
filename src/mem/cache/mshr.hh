@@ -280,6 +280,14 @@ class MSHR : public QueueEntry, public Printable
 
     bool checkFunctional(PacketPtr pkt);
 
+    /* This function checks the argument's address's sector against the sectors
+     * in this mshr's targets. The reason is that if the
+     * potential address's sector doesn't match the sectors in any of these
+     * addresses, then we don't want to coalesce, instead we want to create a
+     * new mshr request for it.
+     */
+    bool checkMSHREntrySector(Addr potential_addr);
+
     /**
      * Prints the contents of this MSHR for debugging.
      */

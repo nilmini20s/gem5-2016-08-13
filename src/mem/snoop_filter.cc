@@ -68,7 +68,8 @@ SnoopFilter::lookupRequest(const Packet* cpkt, const SlavePort& slave_port)
     // check if the packet came from a cache
     bool allocate = !cpkt->req->isUncacheable() && slave_port.isSnooping() &&
         cpkt->fromCache();
-    Addr line_addr = cpkt->getBlockAddr(linesize);
+    //Addr line_addr = cpkt->getBlockAddr(linesize);
+    Addr line_addr = cpkt->getBlockAddr(16);
     if (cpkt->isSecure()) {
         line_addr |= LineSecure;
     }
@@ -154,7 +155,8 @@ SnoopFilter::finishRequest(bool will_retry, Addr addr, bool is_secure)
     if (reqLookupResult != cachedLocations.end()) {
         // since we rely on the caller, do a basic check to ensure
         // that finishRequest is being called following lookupRequest
-        Addr line_addr = (addr & ~(Addr(linesize - 1)));
+        //Addr line_addr = (addr & ~(Addr(linesize - 1)));
+        Addr line_addr = (addr & ~(Addr(16 - 1)));
         if (is_secure) {
             line_addr |= LineSecure;
         }
@@ -181,7 +183,8 @@ SnoopFilter::lookupSnoop(const Packet* cpkt)
 
     assert(cpkt->isRequest());
 
-    Addr line_addr = cpkt->getBlockAddr(linesize);
+    //Addr line_addr = cpkt->getBlockAddr(linesize);
+    Addr line_addr = cpkt->getBlockAddr(16);
     if (cpkt->isSecure()) {
         line_addr |= LineSecure;
     }
@@ -252,7 +255,8 @@ SnoopFilter::updateSnoopResponse(const Packet* cpkt,
         return;
     }
 
-    Addr line_addr = cpkt->getBlockAddr(linesize);
+    //Addr line_addr = cpkt->getBlockAddr(linesize);
+    Addr line_addr = cpkt->getBlockAddr(16);
     if (cpkt->isSecure()) {
         line_addr |= LineSecure;
     }
@@ -301,7 +305,8 @@ SnoopFilter::updateSnoopForward(const Packet* cpkt,
     assert(cpkt->isResponse());
     assert(cpkt->cacheResponding());
 
-    Addr line_addr = cpkt->getBlockAddr(linesize);
+    //Addr line_addr = cpkt->getBlockAddr(linesize);
+    Addr line_addr = cpkt->getBlockAddr(16);
     if (cpkt->isSecure()) {
         line_addr |= LineSecure;
     }
@@ -343,7 +348,8 @@ SnoopFilter::updateResponse(const Packet* cpkt, const SlavePort& slave_port)
         return;
 
     // next check if we actually allocated an entry
-    Addr line_addr = cpkt->getBlockAddr(linesize);
+    //Addr line_addr = cpkt->getBlockAddr(linesize);
+    Addr line_addr = cpkt->getBlockAddr(16);
     if (cpkt->isSecure()) {
         line_addr |= LineSecure;
     }

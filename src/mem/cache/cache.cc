@@ -151,7 +151,10 @@ Cache::satisfyRequest(PacketPtr pkt, CacheBlk *blk,
 {
     assert(pkt->isRequest());
 
-    assert(blk && blk->isValid());
+    // One caller of this function is recvTimingResp() when an mshr
+    // request finishes and the mshr is trying to also satisfy coalesced
+    // targets.
+    assert(blk && blk->isValid(getSector(pkt->getRealAddr())));
     // Occasionally this is not true... if we are a lower-level cache
     // satisfying a string of Read and ReadEx requests from
     // upper-level caches, a Read will mark the block as shared but we
@@ -159,7 +162,7 @@ Cache::satisfyRequest(PacketPtr pkt, CacheBlk *blk,
     // Read requester(s) to have buffered the ReadEx snoop and to
     // invalidate their blocks after receiving them.
     // assert(!pkt->needsWritable() || blk->isWritable());
-    ///// assert(pkt->getOffset(blkSize) + pkt->getSize() <= blkSize);
+    assert(pkt->getOffset(blkSize) + pkt->getSize() <= blkSize);
 
     // Check RMW operations first since both isRead() and
     // isWrite() will be true for them
@@ -294,8 +297,10 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
                   "Should never see a write in a read-only cache %s\n",
                   name());
 
-    DPRINTF(CacheVerbose, "%s for %s addr %#llx size %d\n", __func__,
-            pkt->cmdString(), pkt->getAddr(), pkt->getSize());
+    DPRINTF(CacheVerbose, "%s for %s addr %#llx real_addr %#llx, "
+            "size %d\n", __func__,
+            pkt->cmdString(), pkt->getAddr(), pkt->getRealAddr(),
+            pkt->getSize());
 
     if (pkt->req->isUncacheable()) {
         DPRINTF(Cache, "%s%s addr %#llx uncacheable\n", pkt->cmdString(),
@@ -324,16 +329,17 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
     // Here lat is the value passed as parameter to accessBlock() function
     // that can modify its value.
     blk = tags->accessBlock(pkt->getAddr(), pkt->isSecure(), lat, id);
+    // Restricting the sector cache to only dcache adn L2 cache. Is this ok?
     if ( (!params()->name.compare("system.l2") ||
                 !params()->name.compare("system.cpu.dcache")) &&
-            (blk != nullptr) && !blk->isValid(getSector(pkt->getAddr())))
+            (blk != nullptr) && !blk->isValid(getSector(pkt->getRealAddr())))
         blk = nullptr;
 
-    DPRINTF(Cache, "%s%s addr %#llx blockAddr %#llx sectorAddr %#llx \
-            size %d (%s) %s\n", pkt->cmdString(),
+    DPRINTF(Cache, "%s%s addr %#llx blockAddr %#llx sector %#llu "
+            " size %d (%s) %s\n", pkt->cmdString(),
             pkt->req->isInstFetch() ? " (ifetch)" : "",
             pkt->getAddr(), blockAlign(pkt->getAddr()),
-            getSector(pkt->getAddr()),
+            getSector(pkt->getRealAddr()),
             pkt->getSize(), pkt->isSecure() ? "s" : "ns",
             blk ? "hit " + blk->print() : "miss");
 
@@ -403,7 +409,8 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
             tags->insertBlock(pkt, blk);
 
             blk->status = (BlkValid | BlkReadable);
-            blk->sector_status |= (0x1 << getSector(pkt->getAddr()));
+            // updates sector status too
+            blk->sector_status |= (0x1 << getSector(pkt->getRealAddr()));
 
             if (pkt->isSecure()) {
                 blk->status |= BlkSecure;
@@ -439,8 +446,12 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
         // like a Writeback which could not find a replaceable block so has to
         // go to next level.
         return false;
-    } else if (blk && (pkt->needsWritable() ? blk->isWritable() :
-                       blk->isReadable())) {
+    // before calling satisfyRequest() in this else clause, make sure that the
+    // sector being accessed by the upper level component is valid and present,
+    // otherwise we will get an assert failure in satisfyRequest() function.
+    } else if (blk && (pkt->needsWritable() ?
+                blk->isWritable(getSector(pkt->getRealAddr())) :
+                       blk->isReadable(getSector(pkt->getRealAddr())))) {
         // OK to satisfy access
         incHitCount(pkt);
         satisfyRequest(pkt, blk);
@@ -603,6 +614,9 @@ Cache::recvTimingReq(PacketPtr pkt)
 {
     DPRINTF(CacheTags, "%s tags: %s\n", __func__, tags->print());
 
+    DPRINTF(Cache, "%s got request for %s for addr %#llx real_addr %#llx\n",
+            __func__, pkt->cmdString(), pkt->getAddr(), pkt->getRealAddr());
+
     assert(pkt->isRequest());
 
     // Just forward the packet if caches are disabled.
@@ -764,6 +778,14 @@ Cache::recvTimingReq(PacketPtr pkt)
         MSHR *mshr = pkt->req->isUncacheable() ? nullptr :
             mshrQueue.findMatch(blk_addr, pkt->isSecure());
 
+        // we don't want to colaesce this new miss with an existing mshr
+        // request if the sectors don't match.
+        if (mshr) {
+            bool match = mshr->checkMSHREntrySector(pkt->getRealAddr());
+            if (!match)
+                mshr = nullptr;
+        }
+
         // Software prefetch handling:
         // To keep the core from waiting on data it won't look at
         // anyway, send back a response with dummy data. Miss handling
@@ -921,10 +943,13 @@ PacketPtr
 Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
                         bool needsWritable) const
 {
+    DPRINTF(Cache, "%s will create a request for addr %#llx real_addr %#llx\n",
+            __func__, cpu_pkt->getAddr(), cpu_pkt->getRealAddr());
+
     // should never see evictions here
     assert(!cpu_pkt->isEviction());
 
-    bool blkValid = blk && blk->isValid(getSector(cpu_pkt->getAddr()));
+    bool blkValid = blk && blk->isValid(getSector(cpu_pkt->getRealAddr()));
 
     if (cpu_pkt->req->isUncacheable() ||
         (!blkValid && cpu_pkt->isUpgrade())) {
@@ -945,7 +970,7 @@ Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
         // only reason to be here is that blk is read only and we need
         // it to be writable
         assert(needsWritable);
-        assert(!blk->isWritable(getSector(cpu_pkt->getAddr())));
+        assert(!blk->isWritable());
         cmd = cpu_pkt->isLLSC() ? MemCmd::SCUpgradeReq : MemCmd::UpgradeReq;
     } else if (cpu_pkt->cmd == MemCmd::SCUpgradeFailReq ||
                cpu_pkt->cmd == MemCmd::StoreCondFailReq) {
@@ -969,7 +994,7 @@ Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
     // creates a new packet for the miss, the constructor for Packet block
     // aligns the address (we dont' want that for sector caches)
     PacketPtr pkt = new Packet(cpu_pkt->req, cmd, blkSize);
-    pkt->setAddr(cpu_pkt->getAddr() & ~(16-1));
+    //pkt->setAddr(cpu_pkt->getAddr() & ~(16-1));
 
     // if there are upstream caches that have already marked the
     // packet as having sharers (not passing writable), pass that info
@@ -987,12 +1012,13 @@ Cache::createMissPacket(PacketPtr cpu_pkt, CacheBlk *blk,
     }
 
     // the packet should be block aligned
-    //assert(pkt->getAddr() == blockAlign(pkt->getAddr()));
+    assert(pkt->getAddr() == blockAlign(pkt->getAddr()));
 
     pkt->allocate();
-    DPRINTF(Cache, "%s created %s from %s for  addr %#llx size %d\n",
+    DPRINTF(Cache, "%s created %s from %s for  addr %#llx real_addr %#llx "
+            "size %d\n",
             __func__, pkt->cmdString(), cpu_pkt->cmdString(), pkt->getAddr(),
-            pkt->getSize());
+            pkt->getRealAddr(), pkt->getSize());
     return pkt;
 }
 
@@ -1272,9 +1298,10 @@ Cache::recvTimingResp(PacketPtr pkt)
                 pkt->cmdString());
     }
 
-    DPRINTF(Cache, "Handling response %s for addr %#llx size %d (%s)\n",
-            pkt->cmdString(), pkt->getAddr(), pkt->getSize(),
-            pkt->isSecure() ? "s" : "ns");
+    DPRINTF(Cache, "Handling response %s for addr %#llx real_addr %#llx "
+            "size %d (%s)\n",
+            pkt->cmdString(), pkt->getAddr(), pkt->getRealAddr(),
+            pkt->getSize(), pkt->isSecure() ? "s" : "ns");
 
     // if this is a write, we should be looking at an uncacheable
     // write
@@ -1482,7 +1509,7 @@ Cache::recvTimingResp(PacketPtr pkt)
 
     maintainClusivity(from_cache, blk);
 
-    if (blk && blk->isValid(getSector(pkt->getAddr()))) {
+    if (blk && blk->isValid(getSector(pkt->getRealAddr()))) {
         // an invalidate response stemming from a write line request
         // should not invalidate the block, so check if the
         // invalidation should be discarded
@@ -1546,8 +1573,9 @@ Cache::recvTimingResp(PacketPtr pkt)
         blk->invalidate();
     }
 
-    DPRINTF(CacheVerbose, "Leaving %s with %s for addr %#llx\n", __func__,
-            pkt->cmdString(), pkt->getAddr());
+    DPRINTF(CacheVerbose, "Leaving %s with %s for addr %#llx real_addr %#llx "
+            "\n", __func__,
+            pkt->cmdString(), pkt->getAddr(), pkt->getRealAddr());
     delete pkt;
 }
 
@@ -1739,8 +1767,11 @@ CacheBlk*
 Cache::handleFill(PacketPtr pkt, CacheBlk *blk, PacketList &writebacks,
                   bool allocate)
 {
+    DPRINTF(CacheVerbose, "%s for packet addr %#llx real addr %#llx.\n",
+            __func__, pkt->getAddr(), pkt->getRealAddr());
+
     assert(pkt->isResponse() || pkt->cmd == MemCmd::WriteLineReq);
-    Addr addr = blockAlign(pkt->getAddr());
+    Addr addr = pkt->getAddr();
     bool is_secure = pkt->isSecure();
 #if TRACING_ON
     CacheBlk::State old_state = blk ? blk->status : 0;
@@ -1787,12 +1818,15 @@ Cache::handleFill(PacketPtr pkt, CacheBlk *blk, PacketList &writebacks,
         assert(pkt->hasData() || blk->isValid());
         // don't clear block status... if block is already dirty we
         // don't want to lose that
+        DPRINTF(CacheVerbose, "Block for addr %#llx (%s) already exists. "
+                "Probably an upgrade.\n",
+                addr, is_secure ? "s" : "ns");
     }
 
     if (is_secure)
         blk->status |= BlkSecure;
     blk->status |= BlkValid | BlkReadable;
-    blk->sector_status |= (0x1 << getSector(pkt->getAddr()));
+    blk->sector_status |= (0x1 << getSector(pkt->getRealAddr()));
 
     // sanity check for whole-line writes, which should always be
     // marked as writable as part of the fill, and then later marked

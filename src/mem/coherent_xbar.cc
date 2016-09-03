@@ -234,7 +234,10 @@ CoherentXBar::recvTimingReq(PacketPtr pkt, PortID slave_port_id)
     bool respond_directly = false;
     // store the original address as an address mapper could possibly
     // modify the address upon a sendTimingRequest
-    const Addr addr(pkt->getAddr());
+    // if we don't get the real address here (instead of the block address),
+    // the snoop filter's finishRequest function will get confused about double
+    // MSHR requests.
+    const Addr addr(pkt->getRealAddr());
     if (sink_packet) {
         DPRINTF(CoherentXBar, "Not forwarding %s to %#llx\n",
                 pkt->cmdString(), pkt->getAddr());
