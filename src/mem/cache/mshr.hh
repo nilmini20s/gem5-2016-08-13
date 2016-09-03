@@ -220,7 +220,8 @@ class MSHR : public QueueEntry, public Printable
      * @param _order The logical order of this MSHR
      * @param alloc_on_fill Should the cache allocate a block on fill
      */
-    void allocate(Addr blk_addr, unsigned blk_size, PacketPtr pkt,
+    void allocate(Addr blk_addr, Addr sector_addr, unsigned blk_size,
+                  PacketPtr pkt,
                   Tick when_ready, Counter _order, bool alloc_on_fill);
 
     void markInService(bool pending_modified_resp);

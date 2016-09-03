@@ -482,6 +482,7 @@ class BaseCache : public MemObject
     Addr blockAlign(Addr addr) const { return (addr & ~(Addr(blkSize - 1))); }
 
     /* get sector for the sector cache */
+    Addr sectorAlign(Addr addr) const { return (addr & ~(Addr(16 - 1))); }
     unsigned getSector(Addr addr) const { return ((addr >> 4) & 0x3); }
 
 
@@ -489,7 +490,9 @@ class BaseCache : public MemObject
 
     MSHR *allocateMissBuffer(PacketPtr pkt, Tick time, bool sched_send = true)
     {
-        MSHR *mshr = mshrQueue.allocate(blockAlign(pkt->getAddr()), blkSize,
+        MSHR *mshr = mshrQueue.allocate(blockAlign(pkt->getAddr()),
+                                        sectorAlign(pkt->getRealAddr()),
+                                        blkSize,
                                         pkt, time, order++,
                                         allocOnFill(pkt->cmd));
 

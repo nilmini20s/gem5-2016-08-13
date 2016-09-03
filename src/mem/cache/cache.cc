@@ -392,7 +392,8 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
         // now and drop the clean writeback so that we do not upset
         // any ordering/decisions about ownership already taken
         if (pkt->cmd == MemCmd::WritebackClean &&
-            mshrQueue.findMatch(pkt->getAddr(), pkt->isSecure())) {
+            mshrQueue.findMatch(pkt->getAddr(), pkt->isSecure()),
+                                sectorAlign(pkt->getRealAddr())) {
             DPRINTF(Cache, "Clean writeback %#llx to block with MSHR, "
                     "dropping\n", pkt->getAddr());
             return true;
@@ -776,7 +777,8 @@ Cache::recvTimingReq(PacketPtr pkt)
         // ignore any existing MSHR if we are dealing with an
         // uncacheable request
         MSHR *mshr = pkt->req->isUncacheable() ? nullptr :
-            mshrQueue.findMatch(blk_addr, pkt->isSecure());
+            mshrQueue.findMatch(blk_addr, pkt->isSecure(),
+                                sectorAlign(pkt->getRealAddr()));
 
         // we don't want to colaesce this new miss with an existing mshr
         // request if the sectors don't match.
@@ -2156,7 +2158,8 @@ Cache::recvTimingSnoopReq(PacketPtr pkt)
     CacheBlk *blk = tags->findBlock(pkt->getAddr(), is_secure);
 
     Addr blk_addr = blockAlign(pkt->getAddr());
-    MSHR *mshr = mshrQueue.findMatch(blk_addr, is_secure);
+    MSHR *mshr = mshrQueue.findMatch(blk_addr, is_secure,
+                                     sectorAlign(pkt->getRealAddr()));
 
     // Update the latency cost of the snoop so that the crossbar can
     // account for it. Do not overwrite what other neighbouring caches

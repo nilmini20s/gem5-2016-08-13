@@ -56,7 +56,8 @@ MSHRQueue::MSHRQueue(const std::string &_label,
 {}
 
 MSHR *
-MSHRQueue::allocate(Addr blk_addr, unsigned blk_size, PacketPtr pkt,
+MSHRQueue::allocate(Addr blk_addr, Addr sector_addr, unsigned blk_size,
+                    PacketPtr pkt,
                     Tick when_ready, Counter order, bool alloc_on_fill)
 {
     assert(!freeList.empty());
@@ -64,7 +65,8 @@ MSHRQueue::allocate(Addr blk_addr, unsigned blk_size, PacketPtr pkt,
     assert(mshr->getNumTargets() == 0);
     freeList.pop_front();
 
-    mshr->allocate(blk_addr, blk_size, pkt, when_ready, order, alloc_on_fill);
+    mshr->allocate(blk_addr, sector_addr, blk_size, pkt, when_ready, order,
+            alloc_on_fill);
     mshr->allocIter = allocatedList.insert(allocatedList.end(), mshr);
     mshr->readyIter = addToReadyList(mshr);
 

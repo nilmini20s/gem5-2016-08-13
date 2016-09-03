@@ -153,7 +153,7 @@ class Queue : public Drainable
      * @param is_secure True if the target memory space is secure.
      * @return Pointer to the matching WriteQueueEntry, null if not found.
      */
-    Entry* findMatch(Addr blk_addr, bool is_secure) const
+    Entry* findMatch(Addr blk_addr, bool is_secure, Addr sector_addr = 0) const
     {
         for (const auto& entry : allocatedList) {
             // we ignore any entries allocated for uncacheable
@@ -164,7 +164,19 @@ class Queue : public Drainable
             // serving an uncacheable access
             if (!entry->isUncacheable() && entry->blkAddr == blk_addr &&
                 entry->isSecure == is_secure) {
-                return entry;
+                if (entry->sectorAddr != 0) {
+                    // currently, only mshrQueue entries could have non-zero
+                    // sectorAddr
+                    if (entry->sectorAddr == sector_addr)
+                        return entry;
+                    else
+                        // keep searching
+                        continue;
+                } else {
+                    // it is possible that sectorAddr == 0 if this is a
+                    // writeQueue rather than an mshrQueue
+                    return entry;
+                }
             }
         }
         return nullptr;

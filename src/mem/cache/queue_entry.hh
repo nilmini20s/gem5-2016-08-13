@@ -85,6 +85,9 @@ class QueueEntry : public Packet::SenderState
     /** Block aligned address. */
     Addr blkAddr;
 
+    /** Sector aligned address. */
+    Addr sectorAddr;
+
     /** Block size of the cache. */
     unsigned blkSize;
 
@@ -92,8 +95,8 @@ class QueueEntry : public Packet::SenderState
     bool isSecure;
 
     QueueEntry() : readyTime(0), _isUncacheable(false),
-                   inService(false), order(0), blkAddr(0), blkSize(0),
-                   isSecure(false)
+                   inService(false), order(0), blkAddr(0), sectorAddr(0),
+                   blkSize(0), isSecure(false)
     {}
 
     bool isUncacheable() const { return _isUncacheable; }

@@ -215,10 +215,12 @@ MSHR::TargetList::print(std::ostream &os, int verbosity,
 
 
 void
-MSHR::allocate(Addr blk_addr, unsigned blk_size, PacketPtr target,
+MSHR::allocate(Addr blk_addr, Addr sector_addr, unsigned blk_size,
+               PacketPtr target,
                Tick when_ready, Counter _order, bool alloc_on_fill)
 {
     blkAddr = blk_addr;
+    sectorAddr = sector_addr;
     blkSize = blk_size;
     isSecure = target->isSecure();
     readyTime = when_ready;
