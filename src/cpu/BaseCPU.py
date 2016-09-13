@@ -46,6 +46,8 @@ import sys
 from m5.defines import buildEnv
 from m5.params import *
 from m5.proxy import *
+from m5.objects import *
+from CommMonitor import *
 
 from XBar import L2XBar
 from InstTracer import InstTracer
@@ -264,10 +266,15 @@ class BaseCPU(MemObject):
         self.connectUncachedPorts(uncached_bus)
 
     def addPrivateSplitL1Caches(self, ic, dc, iwc = None, dwc = None):
+        self.memmonitor = CommMonitor()
+        self.memmonitor.trace = MemTraceProbe(trace_file="monitor.ptrc.gz")
+
         self.icache = ic
         self.dcache = dc
         self.icache_port = ic.cpu_side
-        self.dcache_port = dc.cpu_side
+        #self.dcache_port = dc.cpu_side
+        self.dcache_port = self.memmonitor.slave
+        self.memmonitor.master = dc.cpu_side
         self._cached_ports = ['icache.mem_side', 'dcache.mem_side']
         if buildEnv['TARGET_ISA'] in ['x86', 'arm']:
             if iwc and dwc:

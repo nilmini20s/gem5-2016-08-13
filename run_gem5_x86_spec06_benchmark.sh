@@ -206,6 +206,7 @@ else
         --cpu-clock=1GHz \
         --mem-size=2GB \
         --mem-type=HBM_1000_4H_x128 \
+        --fast-forward=2000000000 \
         -I 10000000 \
         --caches \
         --l1d_size=32kB \
