@@ -179,7 +179,7 @@ echo "" | tee -a $SCRIPT_OUT
 if [[ "$GEM5_OPT" == "debug" ]]; then
     gdb --args $GEM5_DIR/build/X86/gem5.$GEM5_OPT \
         --outdir=$OUTPUT_DIR \
-        --debug-flags=CacheAll,O3CPUAll \
+        --debug-flags=CacheAll,O3CPUAll,SnoopFilter \
         --debug-file=$OUTPUT_DIR/debug.out \
         $GEM5_DIR/configs/example/spec06_config.py \
         --benchmark=$BENCHMARK \

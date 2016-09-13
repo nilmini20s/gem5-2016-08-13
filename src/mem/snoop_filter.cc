@@ -62,8 +62,9 @@ SnoopFilter::eraseIfNullEntry(SnoopFilterCache::iterator& sf_it)
 std::pair<SnoopFilter::SnoopList, Cycles>
 SnoopFilter::lookupRequest(const Packet* cpkt, const SlavePort& slave_port)
 {
-    DPRINTF(SnoopFilter, "%s: packet src %s addr 0x%x cmd %s\n",
-            __func__, slave_port.name(), cpkt->getAddr(), cpkt->cmdString());
+    DPRINTF(SnoopFilter, "%s: packet src %s addr 0x%x real_addr 0x%x cmd %s\n",
+            __func__, slave_port.name(), cpkt->getAddr(), cpkt->getRealAddr(),
+            cpkt->cmdString());
 
     // check if the packet came from a cache
     bool allocate = !cpkt->req->isUncacheable() && slave_port.isSnooping() &&
@@ -241,9 +242,10 @@ SnoopFilter::updateSnoopResponse(const Packet* cpkt,
                                  const SlavePort& rsp_port,
                                  const SlavePort& req_port)
 {
-    DPRINTF(SnoopFilter, "%s: packet rsp %s req %s addr 0x%x cmd %s\n",
+    DPRINTF(SnoopFilter, "%s: packet rsp %s req %s addr 0x%x real_addr 0x%x "
+            "cmd %s\n",
             __func__, rsp_port.name(), req_port.name(), cpkt->getAddr(),
-            cpkt->cmdString());
+            cpkt->getRealAddr(), cpkt->cmdString());
 
     assert(cpkt->isResponse());
     assert(cpkt->cacheResponding());
@@ -337,8 +339,9 @@ SnoopFilter::updateSnoopForward(const Packet* cpkt,
 void
 SnoopFilter::updateResponse(const Packet* cpkt, const SlavePort& slave_port)
 {
-    DPRINTF(SnoopFilter, "%s: packet src %s addr 0x%x cmd %s\n",
-            __func__, slave_port.name(), cpkt->getAddr(), cpkt->cmdString());
+    DPRINTF(SnoopFilter, "%s: packet src %s addr 0x%x real_addr 0x%x cmd %s\n",
+            __func__, slave_port.name(), cpkt->getAddr(), cpkt->getRealAddr(),
+            cpkt->cmdString());
 
     assert(cpkt->isResponse());
 
