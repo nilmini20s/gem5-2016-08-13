@@ -198,6 +198,8 @@ if [[ "$GEM5_OPT" == "debug" ]]; then
 else
     $GEM5_DIR/build/X86/gem5.$GEM5_OPT \
         --outdir=$OUTPUT_DIR \
+        --debug-flags=DCacheAccess \
+        --debug-file=$OUTPUT_DIR/cache_accesses.out.gz \
         $GEM5_DIR/configs/example/spec06_config.py \
         --benchmark=$BENCHMARK \
         --benchmark_stdout=$OUTPUT_DIR/$BENCHMARK.out \
@@ -207,7 +209,7 @@ else
         --mem-size=2GB \
         --mem-type=HBM_1000_4H_x128 \
         --fast-forward=2000000000 \
-        -I 10000000 \
+        -I 1000000000 \
         --caches \
         --l1d_size=32kB \
         --l1i_size=32kB \

@@ -59,6 +59,7 @@
 #include "debug/CachePort.hh"
 #include "debug/CacheTags.hh"
 #include "debug/CacheVerbose.hh"
+#include "debug/DCacheAccess.hh"
 #include "mem/cache/blk.hh"
 #include "mem/cache/mshr.hh"
 #include "mem/cache/prefetch/base.hh"
@@ -593,6 +594,10 @@ bool
 Cache::recvTimingReq(PacketPtr pkt)
 {
     DPRINTF(CacheTags, "%s tags: %s\n", __func__, tags->print());
+
+    if (pkt->cmd == MemCmd::WriteReq || pkt->cmd == MemCmd::ReadReq) {
+        DPRINTF(DCacheAccess, "%#llx\n", pkt->getAddr());
+    }
 
     assert(pkt->isRequest());
 
